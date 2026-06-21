@@ -33,6 +33,8 @@ Route::middleware('auth')->group(function () {
         ->name('queue.play');
     Route::delete('/queue/{item}', [QueueController::class, 'remove'])
         ->name('queue.remove');
+    Route::post('/playlists/{playlist}/queue/next', [QueueController::class, 'playNext'])
+        ->name('queue.next');
 });
 
 // Маршруты Breeze (auth, profile)

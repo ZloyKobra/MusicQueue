@@ -4,9 +4,9 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h1>{{ $playlist->title }}</h1>
-        <p class="text-muted">Организатор: {{ $playlist->user->name }}</p>
+        <p class="text-muted mb-0">Организатор: {{ $playlist->user->name }}</p>
         @if($playlist->description)
-            <p>{{ $playlist->description }}</p>
+            <p class="mt-2">{{ $playlist->description }}</p>
         @endif
     </div>
     @if($isOwner)
@@ -20,12 +20,10 @@
     @endif
 </div>
 
-<!-- YouTube плеер (для организатора) -->
-@if($isOwner)
-    <div id="player-container" class="mb-4">
-        <div id="player"></div>
-    </div>
-@endif
+<!-- YouTube плеер -->
+<div id="player-container" class="mb-4">
+    <div id="player"></div>
+</div>
 
 <!-- Форма добавления трека -->
 @auth
@@ -51,9 +49,14 @@
 </div>
 @endauth
 
-<!-- Активная очередь -->
-<h3>Очередь</h3>
-<ul id="queue" class="list-group mb-4">
+<!-- Статус WebSocket -->
+<div id="ws-status" class="mb-3">
+    <span class="badge bg-warning">Connecting...</span>
+</div>
+
+<!-- Очередь -->
+<h3 class="mb-3">Очередь</h3>
+<ul id="queue-list" class="list-group mb-4">
     @forelse($queue as $item)
         <li class="list-group-item d-flex justify-content-between align-items-center" data-id="{{ $item->id }}">
             <div>
@@ -63,8 +66,8 @@
                 <strong>{{ $item->track->artist }}</strong> — {{ $item->track->title }}
                 <br><small class="text-muted">Добавил: {{ $item->adder->name }}</small>
             </div>
-            <div>
-                <span class="badge bg-primary me-2">{{ $item->votes_up }} 👍</span>
+            <div class="d-flex gap-2">
+                <span class="badge bg-primary">{{ $item->votes_up }} 👍</span>
                 @auth
                     @if(auth()->id() !== $item->added_by)
                         <form method="POST" action="{{ route('queue.vote', [$playlist, $item]) }}" class="d-inline">
@@ -72,20 +75,14 @@
                             <button class="btn btn-sm btn-outline-success">Голосовать</button>
                         </form>
                     @endif
-                    @if($isOwner)
-                        @if($item->status === 'pending')
-                            <form method="POST" action="{{ route('queue.play', [$playlist, $item]) }}" class="d-inline">
-                                @csrf
-                                <button class="btn btn-sm btn-outline-primary">▶ Запустить</button>
-                            </form>
-                        @endif
+                    @if($isOwner && $item->status === 'pending')
+                        <form method="POST" action="{{ route('queue.play', [$playlist, $item]) }}" class="d-inline">
+                            @csrf
+                            <button class="btn btn-sm btn-outline-primary">▶</button>
+                        </form>
                         <form method="POST" action="{{ route('queue.skip', [$playlist, $item]) }}" class="d-inline">
                             @csrf
-                            <button class="btn btn-sm btn-outline-warning">⏭ Пропустить</button>
-                        </form>
-                        <form method="POST" action="{{ route('queue.remove', $item) }}" class="d-inline">
-                            @csrf @method('DELETE')
-                            <button class="btn btn-sm btn-outline-danger">✕</button>
+                            <button class="btn btn-sm btn-outline-warning">⏭</button>
                         </form>
                     @endif
                 @endauth
@@ -98,7 +95,7 @@
 
 <!-- История -->
 @if($history->count())
-    <h5>История</h5>
+    <h5 class="mt-4">История</h5>
     <ul class="list-group">
         @foreach($history as $item)
             <li class="list-group-item text-muted">
@@ -109,13 +106,106 @@
 @endif
 
 @push('scripts')
-@if($isOwner)
-    <script src="https://www.youtube.com/iframe_api"></script>
-    <script src="{{ asset('js/youtube-player.js') }}"></script>
-@endif
-<script src="{{ asset('js/queue-live.js') }}"></script>
+<script src="https://www.youtube.com/iframe_api"></script>
 <script>
-    window.playlistId = {{ $playlist->id }};
+// YouTube Player
+window.player = null;
+window.currentVideoId = null;
+
+function onYouTubeIframeAPIReady() {
+    window.player = new YT.Player('player', {
+        height: '360',
+        width: '640',
+        videoId: '',
+        playerVars: {
+            'autoplay': 0,
+            'controls': 1,
+            'rel': 0
+        }
+    });
+}
+
+window.extractVideoId = function(url) {
+    if (!url) return null;
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+    return match ? match[1] : null;
+};
+
+window.playTrack = function(videoId) {
+    console.log('playTrack called with:', videoId);
+    const id = window.extractVideoId(videoId);
+    console.log('Extracted ID:', id);
+    
+    if (id && window.player && typeof window.player.loadVideoById === 'function') {
+        if (id !== window.currentVideoId) {
+            window.player.loadVideoById(id);
+            window.currentVideoId = id;
+            console.log('Playing:', id);
+        }
+    }
+};
+
+
+// WebSocket
+const playlistId = {{ $playlist->id }};
+const wsUrl = `wss://192.168.23.128:8443/ws/playlist/${playlistId}`;
+
+function connectWebSocket() {
+    const ws = new WebSocket(wsUrl);
+    
+    ws.onopen = () => {
+        console.log('WebSocket connected');
+        document.getElementById('ws-status').innerHTML = 
+            '<span class="badge bg-success">● Live</span>';
+    };
+    
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        console.log('Queue update:', data);
+        updateQueue(data.queue);
+        
+        // Автоматическое воспроизведение
+        const playingItem = data.queue.find(item => item.status === 'playing');
+        if (playingItem && playingItem.track && playingItem.track.youtube_url) {
+            playTrack(playingItem.track.youtube_url);
+        }
+    };
+    
+    ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        document.getElementById('ws-status').innerHTML = 
+            '<span class="badge bg-danger">✕ Disconnected. Reconnecting...</span>';
+        setTimeout(connectWebSocket, 3000);
+    };
+    
+    ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+}
+
+function updateQueue(queue) {
+    const list = document.getElementById('queue-list');
+    if (!queue || queue.length === 0) {
+        list.innerHTML = '<li class="list-group-item text-muted">Очередь пуста</li>';
+        return;
+    }
+    
+    list.innerHTML = queue.map(item => `
+        <li class="list-group-item d-flex justify-content-between align-items-center" data-id="${item.id}">
+            <div>
+                ${item.status === 'playing' ? '<span class="badge bg-success me-2">▶ Играет</span>' : ''}
+                <strong>${item.track.artist}</strong> — ${item.track.title}
+                <br><small class="text-muted">Добавил: ${item.adder.name}</small>
+            </div>
+            <div class="d-flex gap-2">
+                <span class="badge bg-primary">${item.votes_up} 👍</span>
+            </div>
+        </li>
+    `).join('');
+}
+
+// Запуск при загрузке
+connectWebSocket();
 </script>
 @endpush
 @endsection

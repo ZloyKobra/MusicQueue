@@ -1,0 +1,22 @@
+/* Кастомные стили для Live Queue */
+.queue-live {
+    margin-top: 20px;
+}
+
+.ws-status {
+    margin-bottom: 15px;
+}
+
+.list-group-item.bg-success.bg-opacity-10 {
+    border-left: 4px solid #28a745;
+}
+
+#player-container {
+    margin-bottom: 30px;
+}
+
+#player {
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
