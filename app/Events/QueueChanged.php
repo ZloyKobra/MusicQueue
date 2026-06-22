@@ -17,7 +17,7 @@ class QueueChanged implements ShouldBroadcastNow
     public function __construct(
         public Playlist $playlist,
         public QueueItem $item,
-        public string $action // 'add', 'vote', 'skip', 'play', 'remove'
+        public string $action
     ) {}
 
     public function broadcastOn(): array
@@ -29,7 +29,6 @@ class QueueChanged implements ShouldBroadcastNow
 
     public function broadcastWith(): array
     {
-        // Загружаем актуальную очередь
         $queue = $this->playlist->queueItems()
             ->with(['track', 'adder'])
             ->whereIn('status', ['pending', 'playing'])
@@ -42,7 +41,7 @@ class QueueChanged implements ShouldBroadcastNow
                     'id' => $item->track->id,
                     'title' => $item->track->title,
                     'artist' => $item->track->artist,
-                    'youtube_url' => $item->track->youtube_url,
+                    'track_url' => $item->track->track_url,
                     'cover_url' => $item->track->cover_url,
                 ],
                 'adder' => [

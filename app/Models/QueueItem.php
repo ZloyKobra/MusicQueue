@@ -9,8 +9,6 @@ class QueueItem extends Model
 {
     use HasFactory;
 
-    protected $table = 'queue_items';
-
     protected $fillable = [
         'playlist_id',
         'track_id',
@@ -21,13 +19,14 @@ class QueueItem extends Model
         'played_at',
     ];
 
-    protected $casts = [
-        'position' => 'integer',
-        'votes_up' => 'integer',
-        'played_at' => 'datetime',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'played_at' => 'datetime',
+            'votes_up' => 'integer',
+        ];
+    }
 
-    // Связи
     public function playlist()
     {
         return $this->belongsTo(Playlist::class);
@@ -41,21 +40,5 @@ class QueueItem extends Model
     public function adder()
     {
         return $this->belongsTo(User::class, 'added_by');
-    }
-
-    // Скоупы для удобной фильтрации
-    public function scopePending($query)
-    {
-        return $query->where('status', 'pending');
-    }
-
-    public function scopePlaying($query)
-    {
-        return $query->where('status', 'playing');
-    }
-
-    public function scopeActive($query)
-    {
-        return $query->whereIn('status', ['pending', 'playing']);
     }
 }

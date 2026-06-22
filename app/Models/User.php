@@ -15,12 +15,15 @@ class User extends Authenticatable
         'email',
         'password',
         'github_id',
-        'avatar',
+        'github_token',
+        'github_refresh_token',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'github_token',
+        'github_refresh_token',
     ];
 
     protected function casts(): array
@@ -31,14 +34,8 @@ class User extends Authenticatable
         ];
     }
 
-    // Связи
     public function playlists()
     {
         return $this->hasMany(Playlist::class);
-    }
-
-    public function addedQueueItems()
-    {
-        return $this->hasMany(QueueItem::class, 'added_by');
     }
 }

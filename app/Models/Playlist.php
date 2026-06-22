@@ -17,11 +17,13 @@ class Playlist extends Model
         'is_public',
     ];
 
-    protected $casts = [
-        'is_public' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_public' => 'boolean',
+        ];
+    }
 
-    // Связи
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -30,14 +32,5 @@ class Playlist extends Model
     public function queueItems()
     {
         return $this->hasMany(QueueItem::class);
-    }
-
-    // Активная очередь (pending + playing)
-    public function activeQueue()
-    {
-        return $this->queueItems()
-            ->whereIn('status', ['pending', 'playing'])
-            ->orderByDesc('votes_up')
-            ->orderBy('position');
     }
 }
